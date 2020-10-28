@@ -1,47 +1,112 @@
 package org.wso2.securevault.provider;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.wso2.securevault.SecureVaultException;
+import org.wso2.securevault.commons.MiscellaneousUtil;
 import org.wso2.securevault.keystore.IdentityKeyStoreWrapper;
 import org.wso2.securevault.keystore.TrustKeyStoreWrapper;
 import org.wso2.securevault.secret.SecretRepository;
 import org.wso2.securevault.secret.SecretRepositoryProvider;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Properties;
-import java.util.ServiceLoader;
 
 public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
 
-    SecretRepository vaultRepository;
-    HashMap<String,SecretRepository> vaultRepositoryMap = new HashMap<String, SecretRepository>();
+    private static Log log = LogFactory.getLog(VaultSecretRepositoryProvider.class);
 
+    /* Property string for external vault secret repositories */
+    private final static String PROP_EXTERNAL_VAULT_SECRET_REPOSITORIES = "externalvaultsecretRepositories";
+    /* Property string for Secret Repository Providers */
+    private final static String SECRET_REPOSITORY_PROVIDERS = "secretRepositoryProviders";
+    /* Dot String */
+    private final static String DOT = ".";
+    /* To get initialized external secret repository */
+    private SecretRepository vaultRepository;
+    /* Contains all initialized external secret repositories */
+    private HashMap<String,SecretRepository> vaultRepositoryMap = new HashMap<>();
+
+    /**
+     *
+     * @see org.wso2.securevault.secret.SecretRepositoryProvider
+     */
     public SecretRepository getSecretRepository(IdentityKeyStoreWrapper identityKeyStoreWrapper,
-                                                TrustKeyStoreWrapper trustKeyStoreWrapper) {
+                                                TrustKeyStoreWrapper trustKeyStoreWrapper) { return null; }
 
-        return null;
-    }
-
-    public HashMap<String, SecretRepository> initProvider(String[] externalRepositoriesArr,
-                                                          Properties configurationProperties, String providerType) {
+    /**
+     *
+     * @param configurationProperties   All the properties under secret configuration file
+     * @param providerType              Type of the VaultSecretRepositoryProvider class
+     * @return                          Initialized secret repository map
+     */
+    public HashMap<String, SecretRepository> initProvider(Properties configurationProperties, String providerType) {
 
         Properties repositoryProperties;
-        ServiceLoader<SecretRepository> loader = ServiceLoader.load(SecretRepository.class);
 
-        for (SecretRepository secretRepository : loader) {
-            vaultRepository = secretRepository;
-            String repoType = vaultRepository.getType();
-            if (Arrays.asList(externalRepositoriesArr).contains(repoType)) {
-                repositoryProperties = filterConfigurations(configurationProperties, providerType, repoType);
-                vaultRepository.init(repositoryProperties, providerType);
-                vaultRepositoryMap.put(vaultRepository.getType(), vaultRepository);
+        String externalrepositoriesString = MiscellaneousUtil.getProperty(
+                configurationProperties, PROP_EXTERNAL_VAULT_SECRET_REPOSITORIES, null);
+        if (externalrepositoriesString == null || "".equals(externalrepositoriesString)) {
+            if (log.isDebugEnabled()) {
+                log.debug("No secret repositories have been configured");
+            }
+            return null;
+        }
+
+        String[] externalrepositoriesArr = externalrepositoriesString.split(",");
+        if (externalrepositoriesArr == null || externalrepositoriesArr.length == 0) {
+            if (log.isDebugEnabled()) {
+                log.debug("No secret repositories have been configured");
+            }
+            return null;
+        }
+
+        for (String externalRepo : externalrepositoriesArr){
+
+            StringBuffer sb = new StringBuffer();
+            sb.append(PROP_EXTERNAL_VAULT_SECRET_REPOSITORIES);
+            sb.append(DOT);
+            sb.append(externalRepo);
+
+            String externalRepository = MiscellaneousUtil.getProperty(
+                    configurationProperties, sb.toString(), null);
+            if (externalRepository == null || "".equals(externalRepository)) {
+                handleException("Repository provider cannot be null ");
+            }
+
+            try {
+               Class aClass = getClass().getClassLoader().loadClass(externalRepository.trim());
+                Object instance = aClass.newInstance();
+
+                if (instance instanceof SecretRepository) {
+                    repositoryProperties = filterConfigurations(configurationProperties, providerType, externalRepo);
+                    vaultRepository = (SecretRepository) instance;
+                    vaultRepository.init(repositoryProperties, providerType);
+                    vaultRepositoryMap.put(vaultRepository.getType(), vaultRepository);
+
+                }
+
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            } catch (InstantiationException e) {
+                e.printStackTrace();
             }
         }
         return vaultRepositoryMap;
     }
 
+    /**
+     *
+     * @param properties   All the properties under secret configuration file
+     * @param provider     Type of the VaultSecretRepositoryProvider class
+     * @param repository   Repository type retrieved from externalvaultsecretRepositories property
+     * @return             Filtered properties
+     */
     public Properties filterConfigurations(Properties properties, String provider, String repository) {
 
-        String propertyString = "secretRepositories."+provider+"."+repository;
+        String propertyString = SECRET_REPOSITORY_PROVIDERS+DOT+provider+DOT+repository;
         new Properties();
         Properties filteredProps;
         filteredProps = (Properties) properties.clone();
@@ -51,5 +116,14 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
             }
         });
         return filteredProps;
+    }
+
+    /**
+     *
+     * @param msg  error message to be displayed
+     */
+    private static void handleException(String msg) {
+        log.error(msg);
+        throw new SecureVaultException(msg);
     }
 }
