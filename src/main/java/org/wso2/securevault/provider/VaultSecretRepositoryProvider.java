@@ -25,19 +25,19 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
 
     private static Log log = LogFactory.getLog(VaultSecretRepositoryProvider.class);
 
-    /* Property String for secretProviders */
+    /* Property String for secretProviders. */
     private final static String PROP_SECRET_PROVIDERS = "secretProviders";
 
-    /* Property String for repositories */
+    /* Property String for repositories. */
     private final static String PROP_REPOSITORIES = "repositories";
 
-    /* Property String for properties */
+    /* Property String for properties. */
     private final static String PROP_PROPERTIES = "properties";
 
-    /* Dot String */
+    /* Dot String. */
     private final static String DOT = ".";
 
-    /* Contains all initialized secret repositories under provider type vault */
+    /* Contains all initialized secret repositories under provider type vault. */
     private HashMap<String, SecretRepository> vaultRepositoryMap = new HashMap<>();
 
     /**
@@ -50,46 +50,49 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
     }
 
     /**
-     * Returns a map containing initialized secret repositories corresponds to a give provider type
+     * Returns a map containing initialized secret repositories corresponds to a give provider type.
      *
-     * @param configurationProperties All the properties under secret configuration file
-     * @param providerType            Type of the VaultSecretRepositoryProvider class
-     * @return Initialized secret repository map
+     * @param configurationProperties All the properties under secret configuration file.
+     * @param providerType            Type of the VaultSecretRepositoryProvider class.
+     * @return Initialized secret repository map.
      */
     public HashMap<String, SecretRepository> initProvider(Properties configurationProperties, String providerType) {
 
-        String propName = PROP_SECRET_PROVIDERS + DOT + providerType + DOT + PROP_REPOSITORIES;
-        String repositoriesString = getPropertiesFromSecretConfigurations(configurationProperties, propName);
+        //Get the list of repositories from the secret configurations.
+        String repositoriesStringPropKey = PROP_SECRET_PROVIDERS + DOT + providerType + DOT + PROP_REPOSITORIES;
+        String repositoriesString = getPropertiesFromSecretConfigurations(configurationProperties,
+                repositoriesStringPropKey);
 
         if (validatePropValue(repositoriesString)) {
+            // Add the list of repositories to an array.
             String[] repositoriesArr = repositoriesString.split(",");
 
             for (String repo : repositoriesArr) {
-                String propertyPrefix = PROP_SECRET_PROVIDERS + DOT + providerType + DOT + PROP_REPOSITORIES + DOT + repo;
+                // Get the property contains the fully qualified class name of the repository.
+                String repositoryClassNamePropKey =
+                        PROP_SECRET_PROVIDERS + DOT + providerType + DOT + PROP_REPOSITORIES + DOT + repo;
                 String repositoryClassName = getPropertiesFromSecretConfigurations(configurationProperties,
-                        propertyPrefix);
+                        repositoryClassNamePropKey);
 
-                if (repositoryClassName == null || "".equals(repositoryClassName)) {
-                    handleException("Repository provider cannot be null ");
-                }
+                if (validatePropValue(repositoryClassName)) {
+                    try {
+                        // Create a new instance of the class.
+                        Class repositoryClass = getClass().getClassLoader().loadClass(repositoryClassName.trim());
+                        Object repositoryImpl = repositoryClass.newInstance();
 
-                try {
-                    Class repositoryClass = getClass().getClassLoader().loadClass(repositoryClassName.trim());
-                    Object repositoryImpl = repositoryClass.newInstance();
-
-                    if (repositoryImpl instanceof SecretRepository) {
-                        Properties repositoryProperties =
-                                filterConfigurations(configurationProperties, providerType, repo);
-                        ((SecretRepository) repositoryImpl).init(repositoryProperties, providerType);
-                        vaultRepositoryMap
-                                .put(((SecretRepository) repositoryImpl).getType(), (SecretRepository) repositoryImpl);
+                        if (repositoryImpl instanceof SecretRepository) {
+                            Properties repositoryProperties = filterConfigurations(configurationProperties, repo);
+                            ((SecretRepository) repositoryImpl).init(repositoryProperties, providerType);
+                            vaultRepositoryMap.put(repo, (SecretRepository) repositoryImpl);
+                        }
+                    } catch (ClassNotFoundException e) {
+                        handleException("A Secret Provider cannot be found for class name : " + repositoryClassName);
+                    } catch (IllegalAccessException e) {
+                        handleException("Error creating an instance, Method does not have access to the class : " +
+                                repositoryClassName);
+                    } catch (InstantiationException e) {
+                        handleException("Error creating an instance from class : " + repositoryClassName);
                     }
-                } catch (ClassNotFoundException e) {
-                    handleException("A Secret Provider cannot be found for class name : " + repositoryClassName);
-                } catch (IllegalAccessException e) {
-                    handleException("Error creating a instance from class : " + repositoryClassName);
-                } catch (InstantiationException e) {
-                    handleException("Error creating a instance from class : " + repositoryClassName);
                 }
             }
         }
@@ -97,39 +100,29 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
     }
 
     /**
-     * Return the properties for a provided repository
+     * Return the properties for a provided repository.
      *
-     * @param configProperties All the properties under secret configuration file
-     * @param provider         Type of the VaultSecretRepositoryProvider class
-     * @param repository       Repository listed under the vault provider
-     * @return Filtered properties
+     * @param configProperties All the properties under secret configuration file.
+     * @param repository       Repository listed under the vault provider.
+     * @return Filtered properties.
      */
-    public Properties filterConfigurations(Properties configProperties, String provider, String repository) {
+    public Properties filterConfigurations(Properties configProperties, String repository) {
 
-        Properties filteredProps;
-        String propertyKeyPrefix =
-                PROP_SECRET_PROVIDERS + DOT + provider + DOT + PROP_REPOSITORIES + DOT + repository + DOT +
-                        PROP_PROPERTIES;
+        Properties filteredProps = new Properties();
+        String propertyKeyPrefix = repository + DOT + PROP_PROPERTIES;
 
-        filteredProps = (Properties) configProperties.clone();
-        configProperties.forEach((k, v) ->{
-            if(!(k.toString().contains(propertyKeyPrefix))){
-                filteredProps.remove(k);
+        configProperties.forEach((propKey, propValue) -> {
+            if (propKey.toString().contains(propertyKeyPrefix)) {
+                filteredProps.put(propKey, propValue);
             }
         });
-
-//        configProperties.forEach((propKey, propValue) -> {
-//            if (!(propKey.toString().contains(propertyKeyPrefix))) {
-//                filteredProps.put(propKey, configProperties.remove(propKey));
-//            }
-//        });
         return filteredProps;
     }
 
     /**
      * Helper method for handle errors.
      *
-     * @param msg error message to be displayed
+     * @param msg error message to be displayed.
      */
     private static void handleException(String msg) {
 
@@ -138,11 +131,11 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
     }
 
     /**
-     * Util method for getting property values from the secret-conf file
+     * Util method for getting property values from the secret-conf file.
      *
-     * @param secretConfigProps All the properties under secret configuration file
-     * @param propName          Name of the property
-     * @return Returns the value for the give property
+     * @param secretConfigProps All the properties under secret configuration file.
+     * @param propName          Name of the property.
+     * @return Returns the value for the give property.
      */
     private String getPropertiesFromSecretConfigurations(Properties secretConfigProps, String propName) {
 
@@ -150,20 +143,19 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
     }
 
     /**
-     * Validate the property value to avoid the processing of null values
+     * Validate the property value to avoid the processing of null values.
      *
-     * @param propvalue Value of the required property
-     * @return Return true if not null
+     * @param propValue Value of the required property.
+     * @return Return true if not null.
      */
-    private boolean validatePropValue(String propvalue) {
+    private boolean validatePropValue(String propValue) {
 
-        if (propvalue == null || "".equals(propvalue)) {
+        if (propValue == null || "".equals(propValue)) {
             if (log.isDebugEnabled()) {
-                log.debug("No secret repositories have been configured");
+                log.debug("No secret repository has been configured.");
             }
             return false;
         }
         return true;
     }
-
 }
