@@ -33,7 +33,7 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
     private final static String PROP_REPOSITORIES = "repositories";
 
     /* Property String for properties. */
-    private final static String PROP_PROPERTIES = "properties";
+    private final static String PROPERTIES = "properties";
 
     /* Dot String. */
     private final static String DOT = ".";
@@ -60,9 +60,15 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
     public Map<String, SecretRepository> initProvider(Properties configurationProperties, String providerType) {
 
         //Get the list of repositories from the secret configurations.
-        String repositoriesStringPropKey = PROP_SECRET_PROVIDERS + DOT + providerType + DOT + PROP_REPOSITORIES;
-        String repositoriesString = getPropertiesFromSecretConfigurations(configurationProperties,
-                repositoriesStringPropKey);
+        StringBuilder repositoriesStringPropKey = new StringBuilder()
+                .append(PROP_SECRET_PROVIDERS)
+                .append(DOT)
+                .append(providerType)
+                .append(DOT)
+                .append(PROP_REPOSITORIES);
+
+        String repositoriesString = getPropertiesFromSecretConfigurations(
+                configurationProperties, repositoriesStringPropKey.toString());
 
         if (isPropValueValidated(repositoriesString)) {
             // Add the list of repositories to an array.
@@ -70,10 +76,13 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
 
             for (String repo : repositoriesArr) {
                 // Get the property contains the fully qualified class name of the repository.
-                String repositoryClassNamePropKey =
-                        PROP_SECRET_PROVIDERS + DOT + providerType + DOT + PROP_REPOSITORIES + DOT + repo;
+                StringBuilder repositoryClassNamePropKey = new StringBuilder()
+                        .append(repositoriesStringPropKey.toString())
+                        .append(DOT)
+                        .append(repo);
+
                 String repositoryClassName = getPropertiesFromSecretConfigurations(configurationProperties,
-                        repositoryClassNamePropKey);
+                        repositoryClassNamePropKey.toString());
 
                 if (isPropValueValidated(repositoryClassName)) {
                     try {
@@ -107,10 +116,13 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
      * @param repository       Repository listed under the vault provider.
      * @return Filtered properties.
      */
-    public Properties filterConfigurations(Properties configProperties, String repository) {
+    private Properties filterConfigurations(Properties configProperties, String repository) {
 
         Properties filteredProps = new Properties();
-        String propertyKeyPrefix = repository + DOT + PROP_PROPERTIES;
+        StringBuilder propertyKeyPrefix = new StringBuilder()
+                .append(repository)
+                .append(DOT)
+                .append(PROPERTIES);
 
         configProperties.forEach((propKey, propValue) -> {
             if (propKey.toString().contains(propertyKeyPrefix)) {
