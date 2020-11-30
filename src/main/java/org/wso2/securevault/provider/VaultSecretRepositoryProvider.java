@@ -150,7 +150,7 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
      * @param propName          Name of the property.
      * @return Returns the value for the give property.
      */
-    private String getPropertiesFromSecretConfigurations(Properties secretConfigProps, String propName) {
+    private static String getPropertiesFromSecretConfigurations(Properties secretConfigProps, String propName) {
 
         return MiscellaneousUtil.getProperty(secretConfigProps, propName, null);
     }
@@ -161,7 +161,7 @@ public class VaultSecretRepositoryProvider implements SecretRepositoryProvider {
      * @param propValue Value of the required property.
      * @return Return true if not null.
      */
-    private boolean isPropValueValidated(String propValue) {
+    private static boolean isPropValueValidated(String propValue) {
 
         if (propValue == null || "".equals(propValue)) {
             if (log.isDebugEnabled()) {
