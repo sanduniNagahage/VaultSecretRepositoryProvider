@@ -4,6 +4,7 @@ import org.powermock.reflect.Whitebox;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+import org.wso2.securevault.SecureVaultException;
 
 import java.util.Properties;
 
@@ -15,6 +16,37 @@ public class VaultSecretRepositoryProviderTest {
     public void setUp() {
 
         vaultSecretRepositoryProvider = new VaultSecretRepositoryProvider();
+    }
+
+    @Test
+    public void testFilterConfigurations() throws Exception {
+
+        Properties actual = Whitebox.invokeMethod(vaultSecretRepositoryProvider, "filterConfigurations",
+                getConfigProperties(), "hashicorp");
+        Assert.assertEquals(4, actual.size());
+    }
+
+    @Test
+    public void testFilterConfigurationsNegative() throws Exception {
+
+        Properties actual = Whitebox.invokeMethod(vaultSecretRepositoryProvider, "filterConfigurations",
+                getConfigProperties(), "aws");
+        Assert.assertEquals(0, actual.size());
+    }
+
+    @Test
+    public void testIsPropValueValidated() {
+
+        Properties configProps = getConfigProperties();
+        configProps.forEach((key, value) -> {
+            Boolean actual;
+            try {
+                actual = Whitebox.invokeMethod(vaultSecretRepositoryProvider, "isPropValueValidated", value);
+                Assert.assertTrue(actual);
+            } catch (Exception e) {
+                handleException("Error in invoking the method : isPropValueValidated ",e);
+            }
+        });
     }
 
     private Properties getConfigProperties() {
@@ -51,36 +83,8 @@ public class VaultSecretRepositoryProviderTest {
         return configProperties;
     }
 
-    @Test
-    public void testFilterConfigurations() throws Exception {
-
-        Properties actual = Whitebox.invokeMethod(vaultSecretRepositoryProvider, "filterConfigurations",
-                getConfigProperties(), "hashicorp");
-        Assert.assertEquals(4, actual.size());
-    }
-
-    @Test
-    public void testFilterConfigurationsNegative() throws Exception {
-
-        Properties actual = Whitebox.invokeMethod(vaultSecretRepositoryProvider, "filterConfigurations",
-                getConfigProperties(), "aws");
-        Assert.assertEquals(0, actual.size());
-    }
-
-    @Test
-    public void testIsPropValueValidated() throws Exception {
-
-        Properties configProps = getConfigProperties();
-        configProps.forEach((key, value) -> {
-            Boolean actual;
-            try {
-                actual = Whitebox.invokeMethod(vaultSecretRepositoryProvider, "isPropValueValidated", value);
-                Assert.assertTrue(actual);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-
+    private static void handleException(String msg,Throwable e) {
+        throw new SecureVaultException(msg,e);
     }
 }
 
